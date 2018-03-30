@@ -72,13 +72,13 @@ public class LoachV1Module {
             map.put("err", "miss name");
             return map;
         }
-        if (!Regex.match("^[a-zA-Z0-9_-]{3,16}$", serviceName)) {
-            map.put("err", "name is invaild");
+        if (!Regex.match("^[a-zA-Z0-9_-]{3,64}$", serviceName)) {
+            map.put("err", "name MUST match ^[a-zA-Z0-9_-]{3,64}$");
             return map;
         }
         String regJson = Json.toJson(params, jsonFormat);
         if (regJson.length() > getRegMaxSize()) {
-            map.put("err", "reg info is too big");
+            map.put("err", String.format("reg info is too big.  %d > %d ", regJson.length(), getRegMaxSize()));
             return map;
         }
         String id = params.getString("id");
@@ -181,7 +181,7 @@ public class LoachV1Module {
     }
     
     public int getRegMaxSize() {
-        return conf.getInt("loach.server.reg.maxSize", 8192);
+        return conf.getInt("loach.server.reg.maxSize", 32 * 1024);
     }
     
     public boolean isAllowUnreg() {
