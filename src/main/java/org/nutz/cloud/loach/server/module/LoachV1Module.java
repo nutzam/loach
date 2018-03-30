@@ -181,7 +181,7 @@ public class LoachV1Module {
     }
     
     public int getRegMaxSize() {
-        return conf.getInt("loach.server.reg.maxSize", 32 * 1024);
+        return conf.getInt("loach.server.reg.maxSize", 128 * 1024);
     }
     
     public boolean isAllowUnreg() {
