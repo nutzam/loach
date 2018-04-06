@@ -1,14 +1,6 @@
 package org.nutz.cloud.loach.server.module;
 
-import static org.nutz.integration.jedis.RedisInterceptor.jedis;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-
+import org.nutz.cloud.loach.server.util.SystemStatusUtil;
 import org.nutz.ioc.aop.Aop;
 import org.nutz.ioc.impl.PropertiesProxy;
 import org.nutz.ioc.loader.annotation.Inject;
@@ -20,12 +12,11 @@ import org.nutz.lang.random.R;
 import org.nutz.lang.util.NutMap;
 import org.nutz.lang.util.Regex;
 import org.nutz.mvc.adaptor.JsonAdaptor;
-import org.nutz.mvc.annotation.AdaptBy;
-import org.nutz.mvc.annotation.At;
-import org.nutz.mvc.annotation.DELETE;
-import org.nutz.mvc.annotation.GET;
-import org.nutz.mvc.annotation.Ok;
-import org.nutz.mvc.annotation.POST;
+import org.nutz.mvc.annotation.*;
+
+import java.util.*;
+
+import static org.nutz.integration.jedis.RedisInterceptor.jedis;
 
 @IocBean
 @At("/loach/v1")
@@ -33,7 +24,7 @@ import org.nutz.mvc.annotation.POST;
 public class LoachV1Module {
 
     protected JsonFormat jsonFormat = JsonFormat.compact();
-    
+
     @Inject
     protected PropertiesProxy conf;
 
@@ -102,7 +93,7 @@ public class LoachV1Module {
     public NutMap list(String serviceName) {
         List<String> keys = new ArrayList<>(jedis().keys("loach:service:" + serviceName + ":*"));
         Collections.sort(keys);
-        
+
         NutMap re = new NutMap();
         re.put("ok", true);
         List<NutMap> services = new LinkedList<>();
@@ -175,16 +166,56 @@ public class LoachV1Module {
         }
         return services;
     }
-    
+
     public int getPingTimeout() {
         return conf.getInt("loach.server.ping.timeout", 15000);
     }
-    
+
     public int getRegMaxSize() {
         return conf.getInt("loach.server.reg.maxSize", 128 * 1024);
     }
-    
+
     public boolean isAllowUnreg() {
         return conf.getBoolean("loach.server.unreg.enable", false);
+    }
+
+    @Ok("json")
+    @At("/status")
+    public NutMap status() {
+        NutMap resultMap = NutMap.NEW();
+        Map<String, List<NutMap>> services = getAllServices();
+        resultMap.addv("count", services.size());
+        List<NutMap> appsList = new ArrayList<>();
+        if (services.size() > 0) {
+            for (String serviceName : services.keySet()) {
+                List<NutMap> idList = new ArrayList<>();
+                for (NutMap service : services.get(serviceName)) {
+                    idList.add(NutMap.NEW().addv("id", service.getString("id")).addv("vip", service.getString("vip")).addv("port", service.getInt("port")));
+                }
+                appsList.add(NutMap.NEW().addv("name", serviceName).addv("ids", idList).addv("size", idList.size()));
+            }
+        }
+        resultMap.addv("apps", appsList);
+        resultMap.addv("status", SystemStatusUtil.getSystemStatus());
+        return resultMap;
+    }
+
+    @At("/info/?/?")
+    @Aop("redis")
+    public NutMap info(String serviceName, String id) {
+        List<String> keys = new ArrayList<>(jedis().keys("loach:service:" + serviceName + ":" + id));
+        Collections.sort(keys);
+        NutMap re = new NutMap();
+        re.put("ok", true);
+        List<NutMap> services = new LinkedList<>();
+        for (String key : keys) {
+            String cnt = jedis().get(key);
+            if (cnt == null)
+                continue;
+            NutMap serviceInfo = Json.fromJson(NutMap.class, cnt);
+            services.add(serviceInfo);
+        }
+        re.put("data", new NutMap(serviceName, services));
+        return re;
     }
 }
